@@ -1,0 +1,151 @@
+---
+title: "Reporte final de "Los peces y el mercurio""
+author: "Sebastian Rodriguez"
+date: "2022-11-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# X1 = número de indentificación
+# X2 = nombre del lago
+# X3 = alcalinidad (mg/l de carbonato de calcio)
+# X4 = PH
+# X5 = calcio (mg/l)
+# X6 = clorofila (mg/l)
+# X7 = concentración media de mercurio (parte por millón) en el tejido muscualar del grupo de peces estudiados en cada lago
+# X8 = número de peces estudiados en el lago
+# X9 = mínimo de la concentración de mercurio en cada grupo de peces
+# X10 = máximo de la concentración de mercurio en cada grupo de peces
+# X11 = estimación (mediante regresión) de la concentración de mercurio en el pez de 3 años (o promedio de mercurio cuando la edad no está disponible)
+# X12 = indicador de la edad de los peces (0: jóvenes; 1: maduros)
+
+
+df = read.csv("mercurio.csv")
+colnames(df) <- c("id","name","alkalinity","ph","calcium","chlorophyll","mercury","count","min_mercury","max_mercury","unknown_mercury","age")
+df
+```
+
+Lo primero a realizar es la limpieza de datos. Esto dado a que en primera instancia al solo ver los datos de las columnas, podemos ver que las variables de id y name son variables básicas que no nos son de importancia para el análisis de datos. Así mismo, también hay que eliminar los datos de min_mercury, max_mercury y unknown_mercury ya que son valores extras que no nos aportan o incluso nos puede llevar a resultados ambiguos. Estamos dejando la columna de mercury, la cual representa el promedio de mercurio en los peces.
+
+```{r}
+# Limpieza de datos
+df <- subset(df, select = c(-id, -name, -min_mercury, -max_mercury, -unknown_mercury))
+df
+```
+
+```{r}
+library(MVN)
+p = 7        #indica que se trata de dos variables
+# Vector de medias
+T = colMeans(df)
+#Matriz de covarianza
+S = cov(df)
+#Distancia de Mahalanobis
+d2M =  mahalanobis(df,T,S)
+
+#Multinormalidad Test gráfico Q-Q Plot
+plot(qchisq(((1:nrow(df)) - 1/2)/nrow(df),df=p),sort( d2M ) )
+abline(a=0, b=1,col="red")
+
+## Test de Multinomalidad: Método Sesgo y kurtosis de Mardia
+mvn(df,subset = NULL,mvn = "mardia", covariance = FALSE,showOutliers = FALSE)
+```
+Esta gráfica qqplot nos representa la tendencia positiva que hay entre los los atributos y el contenido de mercurio en los peces.
+
+
+Teniendo los datos limpios podemos comenzar el análisis realizando las matrices de covarianza y correlación.
+
+```{r}
+# Matriz de covarianza y correlaciones
+S = cov(df)
+Mc = cor(df)
+
+# Eigenvectores y eigenvalores
+eigen_S = eigen(S)
+eigen_Mc = eigen(Mc)
+```
+
+Continuamos con el análisis de componentes con varianza el cual nos da los siguientes resultados:
+
+```{r}
+# Analisis de componentes con varianza
+var_sum = sum(diag(S))
+l1= c(eigen_S[1]$values)
+l1= l1/var_sum
+cumsum(l1)
+```
+
+De acuerdo con los resultados, podemos distinguir que los primeros 3 componentes son los más importantes ya que la suma acumulada de las varianzas de los primeros tres atributos representa el 97% de la varianza total. Estos 3 atributos son: alkalinity, chlorophyll y calcium. Estos se pueden distinguir en la gráfica de vectores representando la varianza. Dicho esto, las unidades de medición para los diferentes atributos difieren, por lo que no se puede hacer una correlación exacta alterando ligeramente los posibles valores de la varianza.
+
+```{r}
+# Analizis de componentes con correlación
+var_sum = sum(diag(Mc))
+l2= c(eigen_Mc[1]$values)
+l2= l2/var_sum
+cumsum(l2)
+```
+
+Por el lado de la correlación, podemos distinguir que los primeros 5 componentes son los más importantes ya que la suma acumulada representa el 97% de la varianza total. Estos 5 atributos son: alkalinity, chlorophyll, calcium, ph y mercury. Dejando de lado count y ph. Estos se pueden distinguir en la gráfica de vectores representando la correlación.
+
+## Parte 2.
+
+Obtenga las gráficas de respectivas con S (matriz de varianzas-covarianzas) y con R (matriz de correlaciones) de las dos primeras componentes e interprete los resultados en término de agrupación de variables (puede ayudar "índice de riqueza", "índice de ruralidad")
+
+```{r}
+library(stats)
+library(factoextra)
+library(ggplot2)
+temp=S
+cpS=princomp(temp,cor=FALSE)
+cpaS=as.matrix(temp)%*%cpS$loadings
+plot(cpaS[,1:2],type="p", main = "Título")
+text(cpaS[,1],cpaS[,2],1:nrow(cpaS))
+biplot(cpS)
+```
+
+Esta gráfica representa la contribución de parte de alkalinity, chlorophyll y calcium, siendo estos los que representan un mayor vector en este mapa de vectores.
+
+```{r}
+temp=Mc
+cpS=princomp(temp,cor=FALSE)
+cpaS=as.matrix(temp)%*%cpS$loadings
+plot(cpaS[,1:2],type="p", main = "Título")
+text(cpaS[,1],cpaS[,2],1:nrow(cpaS))
+biplot(cpS)
+```
+
+Esta gráfica representa la contribución de parte de alkalinity, chlorophyll, calcium, ph y mercury, siendo estos los que representan un mayor vector en este mapa de vectores.
+
+## Parte 3.
+
+Explore los siguientes gráficos relativos al problema y Componentes Principales y dé una interpretación de cada gráfico.
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+library(ggplot2) 
+temp=S
+cp3 = PCA(temp)
+fviz_pca_ind(cp3, col.ind = "blue", addEllipses = TRUE, repel = TRUE)
+fviz_screeplot(cp3)
+fviz_contrib(cp3, choice = c("var"))
+```
+
+Las gráficas permiten observar el análisis de componentes. La gráfica 1 de componentes nos representa a los datos alkalinity, chlorophyll y calcium en la dimensión 1, según esto representando el 75% de la predicción de mercurio en los peces. Este gráfico de barras representa la distribución de las varianzas de cada atributo. Mientras más cercano esté el valor a la línea roja, este valor representa una mayor contribución a los niveles de mercurio del pescado. Dicho esto podemos plantar lo que hemos dicho anteriormente, se representa la contribución de parte de alkalinity, chlorophyll y calcium a la predicción del nivel de mercurio del pescado.
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+library(ggplot2) 
+temp=Mc
+cp3 = PCA(temp)
+fviz_pca_ind(cp3, col.ind = "blue", addEllipses = TRUE, repel = TRUE)
+fviz_screeplot(cp3)
+fviz_contrib(cp3, choice = c("var"))
+```
+
+Las gráficas permiten observar el análisis de componentes. La gráfica 1 de componentes nos representa a los datos alkalinity, chlorophyll, calcium y ph , en la dimensión 1, según esto representando el 72% de la predicción de mercurio en los peces. Así mismo podemos ver que el valor de mercurio está muy retirado lo que no se representa que tiene alguna contribución directa, sin embargo no es determinado proporcionalmente como lo son los otros 4 atributos. De la misma manera,esta gráfica representa la contribución de parte de alkalinity, chlorophyll, calcium, ph y mercury,a la predicción del nivel de mercurio del pescado. Esto siendo que están relativamente igual de cercanas a la línea roja en comparación a age y count que están muy por debajo, lo que nos da a entender que estos dos contribuyen poco o nada a la predicción de mercurio.
